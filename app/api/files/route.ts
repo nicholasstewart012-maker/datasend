@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase, checkEnvVars } from '@/lib/supabase'
 
 export async function GET() {
+  const envError = checkEnvVars()
+  if (envError) {
+    return NextResponse.json({ error: envError }, { status: 500 })
+  }
+
   try {
     const { data, error } = await supabase.storage
       .from('data-bridge')
@@ -11,6 +16,7 @@ export async function GET() {
       })
 
     if (error) {
+      console.error('Storage list error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
@@ -19,7 +25,6 @@ export async function GET() {
         .from('data-bridge')
         .getPublicUrl(`uploads/${file.name}`)
 
-      // Parse original name (strip timestamp prefix)
       const originalName = file.name.replace(/^\d+_/, '')
 
       return {
@@ -35,11 +40,16 @@ export async function GET() {
     return NextResponse.json({ files: filesWithUrls })
   } catch (err) {
     console.error('Server error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
 
 export async function DELETE(request: Request) {
+  const envError = checkEnvVars()
+  if (envError) {
+    return NextResponse.json({ error: envError }, { status: 500 })
+  }
+
   try {
     const { storedName } = await request.json()
     const { error } = await supabase.storage
@@ -53,6 +63,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true })
   } catch (err) {
     console.error('Server error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

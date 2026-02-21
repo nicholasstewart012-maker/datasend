@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { supabase, checkEnvVars } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
+  const envError = checkEnvVars()
+  if (envError) {
+    return NextResponse.json({ error: envError }, { status: 500 })
+  }
+
   try {
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
@@ -29,7 +34,11 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('Upload error:', error)
-        results.push({ name: file.name, success: false, error: error.message })
+        // Provide a helpful message for the 405 bucket policy issue
+        const msg = error.message?.includes('405') || (error as any).status === 405
+          ? 'Bucket upload blocked (405). Check that your "data-bridge" bucket exists in Supabase Storage and has the correct RLS policy (see README).'
+          : error.message
+        results.push({ name: file.name, success: false, error: msg })
         continue
       }
 
@@ -49,6 +58,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ results })
   } catch (err) {
     console.error('Server error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

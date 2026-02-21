@@ -4,32 +4,91 @@ Transfer files and text snippets between your computers through a private web ap
 
 ---
 
-## Setup Guide (Step by Step)
+## Troubleshooting the 500 Errors
 
-### Step 1 — Set up Supabase (free storage)
+### Problem 1: `/api/files` and `/api/text` returning 500
+**Cause:** Supabase environment variables aren't set in Vercel.
 
-1. Go to [supabase.com](https://supabase.com) and create a free account
-2. Click **New Project** → give it a name like `data-bridge`
-3. Once your project loads, go to **Storage** in the left sidebar
-4. Click **New Bucket** → name it `data-bridge` → set it to **Public** → click Create
-5. Go to **SQL Editor** and run this to create the text clips table:
+**Fix:**
+1. Go to your Vercel project → **Settings** → **Environment Variables**
+2. Add these two variables:
+   - `NEXT_PUBLIC_SUPABASE_URL` → your Supabase Project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → your Supabase anon/public key
+3. Go to **Deployments** → click the `...` on your latest deploy → **Redeploy**
+
+---
+
+### Problem 2: Upload returning 405 Method Not Allowed
+**Cause:** The Supabase storage bucket is missing an RLS (Row Level Security) policy that allows uploads.
+
+**Fix — run this SQL in Supabase → SQL Editor:**
 
 ```sql
+-- Allow anyone to upload to the data-bridge bucket
+create policy "Public uploads"
+on storage.objects for insert
+to anon
+with check (bucket_id = 'data-bridge');
+
+-- Allow anyone to read files
+create policy "Public reads"
+on storage.objects for select
+to anon
+using (bucket_id = 'data-bridge');
+
+-- Allow anyone to delete files
+create policy "Public deletes"
+on storage.objects for delete
+to anon
+using (bucket_id = 'data-bridge');
+```
+
+Then redeploy on Vercel.
+
+---
+
+## Fresh Setup Guide
+
+### Step 1 — Set up Supabase
+
+1. Go to [supabase.com](https://supabase.com) → create a free account
+2. Click **New Project** → name it `data-bridge`
+3. Go to **Storage** → **New Bucket** → name it `data-bridge` → toggle **Public** ON → Create
+4. Go to **SQL Editor** and run this:
+
+```sql
+-- Text clips table
 create table text_clips (
   id uuid default gen_random_uuid() primary key,
   content text not null,
   label text,
   created_at timestamptz default now()
 );
+
+-- Storage policies (REQUIRED for uploads to work)
+create policy "Public uploads"
+on storage.objects for insert
+to anon
+with check (bucket_id = 'data-bridge');
+
+create policy "Public reads"
+on storage.objects for select
+to anon
+using (bucket_id = 'data-bridge');
+
+create policy "Public deletes"
+on storage.objects for delete
+to anon
+using (bucket_id = 'data-bridge');
 ```
 
-6. Go to **Settings → API** and copy:
-   - `Project URL` → this is your `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → this is your `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+5. Go to **Settings → API** and copy:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 ---
 
-### Step 2 — Push this code to your GitHub repo
+### Step 2 — Push to GitHub
 
 ```bash
 cd data-bridge
@@ -44,23 +103,18 @@ git push -u origin main
 
 ### Step 3 — Deploy to Vercel
 
-1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
-2. Click **Add New Project** → Import your `data-bridge` repo
-3. Before deploying, click **Environment Variables** and add:
-   - `NEXT_PUBLIC_SUPABASE_URL` → paste your Supabase Project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → paste your Supabase anon key
-4. Click **Deploy**
-
-That's it! Vercel gives you a live URL like `https://data-bridge-xyz.vercel.app`
+1. [vercel.com](https://vercel.com) → **Add New Project** → import your repo
+2. Under **Environment Variables** add both Supabase keys
+3. Click **Deploy**
 
 ---
 
-### Step 4 — Use it!
+### Step 4 — Use it
 
-Open the URL on **both** your personal and work computers.
+Open your Vercel URL on both computers.
 
-- **Files tab**: Drag and drop files to upload. Click **↓ Get** to download on the other machine.
-- **Text tab**: Paste commands, URLs, env vars, code snippets — anything. Click **⎘ Copy** to grab it on the other machine.
+- **Files tab**: Drag & drop to upload → click **↓ Get** to download on the other machine
+- **Text tab**: Paste anything → click **⎘ Copy** on the other machine
 
 ---
 
@@ -68,18 +122,9 @@ Open the URL on **both** your personal and work computers.
 
 ```bash
 cp .env.example .env.local
-# Fill in your Supabase credentials in .env.local
+# Fill in your Supabase credentials
 
 npm install
 npm run dev
-# Opens at http://localhost:3000
+# http://localhost:3000
 ```
-
----
-
-## Notes
-
-- Files are stored in Supabase Storage (free tier: 1 GB)
-- Text clips are stored in Supabase Postgres (free tier: 500 MB)
-- No login required — keep your URL private
-- Every `git push` auto-redeploys to Vercel
