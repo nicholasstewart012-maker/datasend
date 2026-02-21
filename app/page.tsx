@@ -150,6 +150,23 @@ export default function Home() {
     if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files)
   }
 
+  const downloadFile = async (url: string, name: string) => {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      addToast('Download failed', 'error')
+    }
+  }
+
   const deleteFile = async (storedName: string, name: string) => {
     try {
       await fetch('/api/files', {
@@ -312,16 +329,12 @@ export default function Home() {
                   <span className="file-size">{formatBytes(file.size)}</span>
                   <span className="file-date">{file.createdAt ? formatDate(file.createdAt) : '—'}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <a
-                      href={file.url}
-                      download={file.name}
+                    <button
                       className="btn btn-sm"
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={e => e.stopPropagation()}
+                      onClick={() => downloadFile(file.url, file.name)}
                     >
                       ↓ Get
-                    </a>
+                    </button>
                     <button
                       className="btn btn-danger"
                       onClick={() => deleteFile(file.storedName, file.name)}
