@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 
 type UploadResult = {
   name: string
@@ -113,26 +114,53 @@ export default function Home() {
     setUploading(true)
     setUploadQueue(filesArr.map(f => ({ name: f.name, status: 'uploading' })))
 
-    const formData = new FormData()
-    filesArr.forEach(f => formData.append('files', f))
-
     try {
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      const data = await res.json()
+      const results: UploadResult[] = []
 
-      if (data.results) {
-        const results: UploadResult[] = data.results
-        setUploadQueue(results.map(r => ({
-          name: r.name,
-          status: r.success ? 'done' : 'error',
-        })))
+      for (const file of filesArr) {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const path = `uploads/${Date.now()}_${crypto.randomUUID()}_${safeName}`
 
-        const successCount = results.filter(r => r.success).length
-        const errorCount = results.filter(r => !r.success).length
+        const { data, error } = await supabase.storage
+          .from('data-bridge')
+          .upload(path, file, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: false,
+          })
 
-        if (successCount > 0) addToast(`${successCount} file${successCount > 1 ? 's' : ''} uploaded`, 'success')
-        if (errorCount > 0) addToast(`${errorCount} file${errorCount > 1 ? 's' : ''} failed`, 'error')
+        if (error) {
+          const msg = error.message?.includes('413') || error.message?.includes('payload too large')
+            ? 'Upload too large for the current storage limit.'
+            : error.message
+          results.push({ name: file.name, success: false, error: msg })
+          continue
+        }
 
+        const { data: urlData } = supabase.storage
+          .from('data-bridge')
+          .getPublicUrl(data.path)
+
+        results.push({
+          name: file.name,
+          success: true,
+          storedName: data.path,
+          url: urlData.publicUrl,
+          size: file.size,
+        })
+      }
+
+      setUploadQueue(results.map(r => ({
+        name: r.name,
+        status: r.success ? 'done' : 'error',
+      })))
+
+      const successCount = results.filter(r => r.success).length
+      const errorCount = results.filter(r => !r.success).length
+
+      if (successCount > 0) addToast(`${successCount} file${successCount > 1 ? 's' : ''} uploaded`, 'success')
+      if (errorCount > 0) addToast(`${errorCount} file${errorCount > 1 ? 's' : ''} failed`, 'error')
+
+      if (successCount > 0) {
         await loadFiles()
       }
     } catch {
@@ -169,11 +197,12 @@ export default function Home() {
 
   const deleteFile = async (storedName: string, name: string) => {
     try {
-      await fetch('/api/files', {
+      const res = await fetch('/api/files', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storedName }),
       })
+      if (!res.ok) throw new Error('Delete failed')
       setFiles(prev => prev.filter(f => f.storedName !== storedName))
       addToast(`Deleted ${name}`, 'info')
     } catch {
@@ -215,11 +244,12 @@ export default function Home() {
 
   const deleteClip = async (id: string) => {
     try {
-      await fetch('/api/text', {
+      const res = await fetch('/api/text', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       })
+      if (!res.ok) throw new Error('Delete failed')
       setClips(prev => prev.filter(c => c.id !== id))
       addToast('Clip deleted', 'info')
     } catch {

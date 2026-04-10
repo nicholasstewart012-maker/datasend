@@ -2,6 +2,8 @@
 
 Transfer files and text snippets between your computers through a private web app hosted on Vercel.
 
+Files upload directly from the browser to Supabase Storage, which avoids the Vercel request-body limits that break large uploads.
+
 ---
 
 ## Troubleshooting the 500 Errors
@@ -18,8 +20,8 @@ Transfer files and text snippets between your computers through a private web ap
 
 ---
 
-### Problem 2: Upload returning 405 Method Not Allowed
-**Cause:** The Supabase storage bucket is missing an RLS (Row Level Security) policy that allows uploads.
+### Problem 2: Uploads failing on large files
+**Cause:** The old upload flow sent the entire file through a Vercel API route, which is the wrong place for big file bodies.
 
 **Fix — run this SQL in Supabase → SQL Editor:**
 
@@ -43,7 +45,7 @@ to anon
 using (bucket_id = 'data-bridge');
 ```
 
-Then redeploy on Vercel.
+Then redeploy on Vercel. Uploads now go straight from the browser to Supabase, so Vercel request size limits no longer apply.
 
 ---
 
@@ -85,6 +87,8 @@ using (bucket_id = 'data-bridge');
 5. Go to **Settings → API** and copy:
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+If you plan to move multi-hundred-megabyte files, make sure your Supabase storage plan and file-size limits match that use case.
 
 ---
 
