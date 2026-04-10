@@ -16,6 +16,7 @@ type FileItem = {
   id: string
   name: string
   storedName: string
+  originalName: string
   size: number
   createdAt: string
   url: string
@@ -118,8 +119,8 @@ export default function Home() {
       const results: UploadResult[] = []
 
       for (const file of filesArr) {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-        const path = `uploads/${Date.now()}_${crypto.randomUUID()}_${safeName}`
+        const encodedName = encodeURIComponent(file.name)
+        const path = `uploads/${Date.now()}__${crypto.randomUUID()}__${encodedName}`
 
         const { data, error } = await supabase.storage
           .from('data-bridge')
@@ -355,19 +356,19 @@ export default function Home() {
             ) : (
               files.map(file => (
                 <div key={file.id || file.storedName} className="file-row">
-                  <span className="file-name" title={file.name}>{file.name}</span>
+                  <span className="file-name" title={file.originalName || file.name}>{file.originalName || file.name}</span>
                   <span className="file-size">{formatBytes(file.size)}</span>
                   <span className="file-date">{file.createdAt ? formatDate(file.createdAt) : '—'}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       className="btn btn-sm"
-                      onClick={() => downloadFile(file.url, file.name)}
+                      onClick={() => downloadFile(file.url, file.originalName || file.name)}
                     >
                       ↓ Get
                     </button>
                     <button
                       className="btn btn-danger"
-                      onClick={() => deleteFile(file.storedName, file.name)}
+                      onClick={() => deleteFile(file.storedName, file.originalName || file.name)}
                     >
                       ✕
                     </button>

@@ -20,17 +20,31 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    const decodeStoredName = (storedName: string) => {
+      const stripped = storedName
+        .replace(/^\d+__[^_]+__/, '')
+        .replace(/^\d+_[^_]+_/, '')
+        .replace(/^\d+_/, '')
+
+      try {
+        return decodeURIComponent(stripped)
+      } catch {
+        return stripped
+      }
+    }
+
     const filesWithUrls = (data || []).map((file) => {
       const { data: urlData } = supabase.storage
         .from('data-bridge')
         .getPublicUrl(`uploads/${file.name}`)
 
-      const originalName = file.name.replace(/^\d+_/, '')
+      const originalName = decodeStoredName(file.name)
 
       return {
         id: file.id,
         name: originalName,
         storedName: file.name,
+        originalName,
         size: file.metadata?.size || 0,
         createdAt: file.created_at,
         url: urlData.publicUrl,
